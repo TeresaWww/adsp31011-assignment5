@@ -1,5 +1,5 @@
 snowflake-connector-python
-mcp
+mcp>=2
 streamlit
 pandas
 python-dotenv

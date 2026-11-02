@@ -31,6 +31,7 @@ No orphan keys: every fact row matches a customer, film, and date.
 ## Facts worth knowing
 
 - **Date range of activity:** 2005-05-24 to 2006-02-14. `DIM_DATE` covers 2005-01-01 to 2007-01-01; `DATE_KEY` is an integer `YYYYMMDD`.
+- **Activity is sparse:** rentals exist on only 41 days, in roughly one-week bursts every two weeks from 2005-05-24 to 2005-08-23, then nothing until a single day, 2006-02-14 (182 rentals). September 2005 to January 2006 has no data at all, so a monthly trend shows a fake "collapse" in the autumn.
 - **Totals:** 16,044 rentals, $67,406.56 revenue (`AMOUNT_PAID`, `NUMBER(8,2)`). 183 rentals are not returned (`IS_RETURNED = FALSE`, `RETURN_DATE_KEY` null).
 - **By store:** store 1 (Lethbridge, Canada; manager Mike Hillyer) has 7,923 rentals / $33,679.79; store 2 (Woodridge, Australia; manager Jon Stephens) has 8,121 / $33,726.77.
 - `RENTAL_COUNT` and `PAYMENT_COUNT` are always 1, so `COUNT(*)` = `SUM(RENTAL_COUNT)`.

@@ -1,0 +1,5 @@
+snowflake-connector-python
+mcp
+streamlit
+pandas
+python-dotenv

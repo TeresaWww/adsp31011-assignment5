@@ -130,16 +130,39 @@ def _jsonable(v):
     return v
 
 
+# Snowflake error codes meaning the session or its tokens have expired.
+SESSION_EXPIRED = {250001, 390111, 390112, 390114}
+
+
+def _session_expired(exc):
+    return isinstance(exc, snowflake.connector.errors.ReauthenticationRequest) or exc.errno in SESSION_EXPIRED
+
+
 def _execute(sql, params=None):
-    """Run SQL with bound parameters; return (rows as dicts, columns, query_id)."""
-    cur = _connection().cursor()
-    try:
-        cur.execute(sql, params or {})
-        cols = [c[0].lower() for c in cur.description]
-        rows = [{k: _jsonable(v) for k, v in zip(cols, r)} for r in cur.fetchall()]
-        return rows, cols, cur.sfqid
-    finally:
-        cur.close()
+    """Run SQL with bound parameters; return (rows as dicts, columns, query_id).
+
+    A long-running server outlives Snowflake's 4-hour login, so an expired
+    session is replaced with a fresh connection and the query retried once.
+    """
+    global _conn
+    for attempt in range(2):
+        cur = _connection().cursor()
+        try:
+            cur.execute(sql, params or {})
+            cols = [c[0].lower() for c in cur.description]
+            rows = [{k: _jsonable(v) for k, v in zip(cols, r)} for r in cur.fetchall()]
+            return rows, cols, cur.sfqid
+        except snowflake.connector.errors.DatabaseError as exc:
+            if attempt == 0 and _session_expired(exc):
+                try:
+                    _conn.close()
+                except Exception:
+                    pass
+                _conn = None
+                continue
+            raise
+        finally:
+            cur.close()
 
 
 def _parse_date(value, name):

@@ -84,9 +84,9 @@ def fmt(metric, value):
     if value is None:
         return "no data"
     if metric == "revenue":
-        return f"${value:,.2f}"
+        return f"\\${value:,.2f}"  # escaped: "$...$" renders as LaTeX in markdown
     if metric == "avg_amount_per_rental":
-        return f"${value:,.2f}"
+        return f"\\${value:,.2f}"
     if metric == "avg_rental_days":
         return f"{value:,.2f} days"
     return f"{value:,.0f}"
@@ -96,7 +96,7 @@ def bar_chart(df, x, y, title, x_title, y_title, horizontal=False, sort=None):
     base = alt.Chart(df, title=title)
     if horizontal:
         chart = base.mark_bar(color=BAR_COLOR, cornerRadiusEnd=4, height={"band": 0.7}).encode(
-            y=alt.Y(f"{x}:N", title=x_title, sort="-x"),
+            y=alt.Y(f"{x}:N", title=x_title, sort="-x", axis=alt.Axis(labelOverlap=False)),
             x=alt.X(f"{y}:Q", title=y_title),
             tooltip=[alt.Tooltip(f"{x}:N", title=x_title), alt.Tooltip(f"{y}:Q", title=y_title, format=",.2f")],
         )
@@ -106,7 +106,8 @@ def bar_chart(df, x, y, title, x_title, y_title, horizontal=False, sort=None):
             y=alt.Y(f"{y}:Q", title=y_title),
             tooltip=[alt.Tooltip(f"{x}:N", title=x_title), alt.Tooltip(f"{y}:Q", title=y_title, format=",.2f")],
         )
-    st.altair_chart(chart.properties(height=320), width="stretch")
+    height = max(320, 28 * len(df)) if horizontal else 320  # ~28px per bar keeps every label
+    st.altair_chart(chart.properties(height=height), width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +194,12 @@ def answer_aggregate(plan):
         sort = DAY_ORDER if g == "day_of_week" else None
         bar_chart(df, g, metric, f"{label} by {GROUP_LABELS[g].lower()}", GROUP_LABELS[g], label,
                   horizontal=g in ("category", "customer_country"), sort=sort)
-        st.dataframe(df.rename(columns={g: GROUP_LABELS[g], metric: label}), hide_index=True, width="stretch")
+        if g not in ("month", "year", "day_of_week"):
+            df = df.sort_values(metric, ascending=False).reset_index(drop=True)  # ranked, like the question
+        money = metric in ("revenue", "avg_amount_per_rental")
+        st.dataframe(df.rename(columns={g: GROUP_LABELS[g], metric: label}), hide_index=True, width="stretch",
+                     column_config={label: st.column_config.NumberColumn(
+                         label, format="dollar" if money else ("%.2f" if metric == "avg_rental_days" else "localized"))})
     else:
         value = r["rows"][0][metric]
         st.subheader(f"{label}: {fmt(metric, value)}")
@@ -262,14 +268,17 @@ def provenance(plan):
             if c["tool"] == "get_query_cost":
                 cols[2].markdown("**Query cost**  \nThis lookup reads query history; its own cost is negligible.")
             else:
-                cost = query_cost(c["query_id"])
+                try:
+                    cost = query_cost(c["query_id"])
+                except tools.snowflake.connector.errors.Error:
+                    cost = {"found": False}
                 if cost["found"]:
                     cols[2].markdown(
                         f"**Query cost**  \n{cost['elapsed_ms']:,} ms elapsed · "
                         f"{cost['bytes_scanned']:,} bytes scanned · ~{cost['estimated_credits']:.6f} credits "
                         f"({cost['warehouse_size'] or 'no warehouse'})")
                 else:
-                    cols[2].markdown("**Query cost**  \nNot in query history yet.")
+                    cols[2].markdown("**Query cost**  \nCouldn't read query history for this query.")
             st.code(c["sql"], language="sql")
     st.caption("Credits are estimated as execution time × the warehouse's credits per hour. Snowflake bills "
                "a warehouse for at least 60 seconds each time it resumes, so the real charge can be higher. "
@@ -330,5 +339,9 @@ if question:
                 RENDERERS[plan.tool](plan)
         except ValueError as e:
             st.warning(f"**I can't answer that.** {e}")
+        except tools.snowflake.connector.errors.Error as e:
+            st.error("**Couldn't reach the warehouse.** The query didn't run, so there is no answer to show. "
+                     "Try again in a moment; if it keeps failing, restart the app.")
+            st.caption(f"Snowflake error {getattr(e, 'errno', '')}: {getattr(e, 'raw_msg', None) or e}")
         if st.session_state.calls:
             provenance(plan)

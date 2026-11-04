@@ -51,16 +51,3 @@ Five questions written to break the app, plus failures found along the way. For 
 **Handled well?** Yes. There are three layers: the router refuses before any tool runs, the tools accept only allow-listed or bound values, and the Snowflake role is read-only.
 
 **What changed:** MCP SDK 2.x hides exception messages from the client by default, so a rejected argument came back as only "Error executing tool". Validation errors now raise a `ToolError` subclass so the model sees which values are allowed.
-
-## Write-up
-
-**One question answered well:** <!-- screenshot: "How many customers rented Horror films in July 2005?" -->
-
-**One handled badly, on purpose:** <!-- screenshot: the original "Why did revenue drop in 2007?" refusal, or "give me the best seller film 2006" -->
-
-**What I'd fix with another week:**
-- Replace the keyword router with an LLM that calls the same four tools, keeping the rule-based checks (mismatch warning, zero-row wording, data-gap caveat) as guardrails around it.
-- Add a bounded "top N films/customers" tool so ranking questions get an answer instead of a refusal.
-- Detect data gaps from the data instead of a hard-coded note.
-- Report billed credits once `QUERY_ATTRIBUTION_HISTORY` catches up, instead of only the estimate.
-- Deploy to Streamlit in Snowflake.

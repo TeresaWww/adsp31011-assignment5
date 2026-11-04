@@ -36,4 +36,22 @@ claude mcp add sakila-dw -- "$(pwd)/.venv/bin/python" "$(pwd)/mcp_server/server.
 ```
 
 ## AI Usage
-<!-- Describe where AI tools were used: what you asked, what you kept, what you threw out -->
+
+I used Claude Code (Claude Opus 5.5) as a pair programmer for this whole assignment. I reviewed every file, ran every tool and test question myself against Snowflake, and I am responsible for all of it.
+
+**What I asked for**
+- A project scaffold, inventory SQL for `SAKILA.DW`, and a summary of what one row of each table represents.
+- Help connecting to Snowflake with a dedicated read-only user and role.
+- The four MCP tools with allow-list validation, then a Streamlit app with a keyword router (I chose rules over an LLM so every routing decision is traceable).
+- A first draft of the Part 4 break tests and this README.
+
+**What I kept**
+- The tool design: allow-lists for metric, `group_by`, category, and store; parsed dates; `LIMIT` capped at 100; bound parameters only.
+- The honesty checks: the customers-vs-rentals warning, "no data, not zero" wording, the out-of-range and data-gap notes.
+- The data findings from the inventory: SCD Type 2 duplicates in `DIM_CUSTOMER` and `DIM_FILM`, and rentals existing on only 41 days.
+
+**What I threw out or changed**
+- The first `CREATE USER` script used `TYPE = PERSON`, which requires MFA for password logins. It was replaced with `TYPE = LEGACY_SERVICE` and an explicit read-only role.
+- Code written against the MCP SDK 1.x `FastMCP` API, which no longer exists in 2.x. It was rewritten for `MCPServer`, and validation errors were changed to `ToolError` so clients can see them.
+- Router rules that failed my own tests: "drop" treated as SQL injection, "how many customer rentals" counted as people, "how many rentals did they make" read as revenue, and a generic message for "best seller film".
+- An option to add a "group by film" ranking. I chose to keep ranking questions as an honest refusal instead.

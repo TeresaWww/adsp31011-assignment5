@@ -41,11 +41,13 @@ NOT_IN_DATA = [
     (r"\b(forecast|predict|projection|next (year|month|quarter))\b", "forecasts (only historical rentals are stored)"),
     (r"\b(streaming|online|website|app downloads?|marketing|ads?|campaigns?)\b", "online, streaming, or marketing activity"),
     (r"\b(weather|stock price|competitors?)\b", "anything outside the rental business"),
-    (r"\btop\s+\d*\s*(films?|movies?|titles?|customers?|actors?)\b|\b(best|most popular)\s+(films?|movies?|customers?|actors?)\b",
-     "rankings of individual films, customers, or actors (the tools group by category, store, rating, country, or time only)"),
     (r"\b(actors?|actress(es)?|cast)\b", "actors (not in the dimensional model)"),
     (r"\b(staff member|employee|cashier)s?\b.*\b(best|most|performance)\b", "staff performance"),
 ]
+
+# A ranking word shortly before a film/customer noun: "best seller film", "top 10 movies", "most rented title".
+RANKING = (r"\b(top|best|most popular|best[- ]?sell(er|ers|ing)|highest|most rented|favou?rite)\b(\s+\S+){0,3}?\s+"
+           r"(films?|movies?|titles?|customers?|renters?|actors?)\b")
 
 VAGUE = r"^\s*(how are we doing|how('s| is) (it|business) going|any (insights?|news)|what('s| is) up|status|overview|summary)\W*$"
 
@@ -120,7 +122,7 @@ def _group_by(q):
         (r"\b(by|per|each|every) month\b|\bmonthly\b|\btrend\b|\bover time\b|\bmonth by month\b", "month"),
         (r"\b(by|per|each) year\b|\byearly\b|\bannual\b", "year"),
         (r"\bday of (the )?week\b|\bweekdays?\b|\bweekends?\b|\b(by|per) day\b", "day_of_week"),
-        (r"\b(by|per|each|both|compare|across|which) stores?\b|\bstores?\b.*\bcompare\b", "store"),
+        (r"\b(by|per|each|both|compare|across|which|best|top|busiest) stores?\b|\bstores?\b.*\bcompare\b", "store"),
         (r"\b(by|per|each|which|top|across) (film )?(categor(y|ies)|genres?)\b|\bcategor(y|ies)\b.*\b(most|best|top)\b", "category"),
         (r"\b(by|per|each|which) (rating|mpaa)\b|\bratings\b", "rating"),
         (r"\b(by|per|each|which) countr(y|ies)\b|\bcountries\b", "customer_country"),
@@ -173,9 +175,15 @@ def route(question, default_start, default_end, default_category=None, default_s
     if re.search(r"\bcredits?\b", q) or (re.search(r"\b(cost|how long|elapsed|expensive)\b", q) and re.search(r"\bquer(y|ies)\b", q)):
         return Plan("answer", tool="get_query_cost")
 
+    if re.search(RANKING, q):
+        return Plan("unsupported", message=(
+            "These tools can't rank individual films, customers, or actors. They only break numbers down by "
+            "category, rating, store, customer country, or time. The closest question they can answer is "
+            "\"Which category earns the most revenue?\""))
+
     for pattern, what in NOT_IN_DATA:
         if re.search(pattern, q):
-            return Plan("unsupported", message=f"The warehouse has no data on {what}, so these tools can't answer that.")
+            return Plan("unsupported", message=f"These tools can't answer that: there is no data on {what}.")
 
     if re.search(VAGUE, q):
         return Plan("clarify", message=(

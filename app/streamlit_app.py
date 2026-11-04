@@ -234,6 +234,9 @@ def no_data(r):
              "**not** that the answer is zero.")
     if r.get("coverage_note"):
         st.info(r["coverage_note"])
+    else:
+        # Inside the covered span but still empty: one of the gaps.
+        st.info(f"The period is inside the data's overall range, but it falls in a gap. {tools.DATA_GAPS_NOTE}")
 
 
 RENDERERS = {"describe_schema": answer_schema, "get_query_cost": answer_cost,
